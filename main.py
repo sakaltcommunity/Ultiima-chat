@@ -1,46 +1,42 @@
 import gradio as gr
-import requests
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
-# Vercel APIのエンドポイント
-API_URL = "https://ultiima-api-vercel.com/api-sakal-models"  # デプロイしたAPIのURLを記入
+model_name = "Sakalti/SakalFusion-7B-Alpha"
 
-# APIリクエスト関数
-def generate_text(prompt, max_new_tokens, temperature, top_p, top_k):
-    # APIにデータを送信
-    payload = {
-        "prompt": prompt,
-        "max_new_tokens": int(max_new_tokens),
-        "temperature": float(temperature),
-        "top_p": float(top_p),
-        "top_k": int(top_k),
-    }
-    response = requests.post(API_URL, json=payload)
-    
-    # APIのレスポンスを処理
-    if response.status_code == 200:
-        return response.json().get("generated_text", "No text generated.")
-    else:
-        return f"Error: {response.status_code}, {response.text}"
-
-# Gradioインターフェース
-inputs = [
-    gr.Textbox(label="Prompt", placeholder="Enter your prompt here", lines=2),
-    gr.Slider(label="Max New Tokens", minimum=10, maximum=200, step=10, value=50),
-    gr.Slider(label="Temperature", minimum=0.1, maximum=2.0, step=0.1, value=1.0),
-    gr.Slider(label="Top-p", minimum=0.1, maximum=1.0, step=0.1, value=1.0),
-    gr.Slider(label="Top-k", minimum=10, maximum=100, step=10, value=50),
-]
-
-outputs = gr.Textbox(label="Generated Text")
-
-app = gr.Interface(
-    fn=generate_text,
-    inputs=inputs,
-    outputs=outputs,
-    title="Text Generation App",
-    description="Generate text using your deployed API with adjustable parameters.",
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    torch_dtype=torch.bfloat16,
+    device_map="auto"
 )
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+def generate(prompt, history):
+    messages = [
+        {"role": "system", "content": "あなたはフレンドリーなチャットボットです。"},
+        {"role": "user", "content": prompt}
+    ]
+    text = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
+    model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
+    
+    generated_ids = model.generate(
+        **model_inputs,
+        max_new_tokens=864
+        temperature=0.7
+    )
+    generated_ids = [
+        output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
+    ]
+    
+    response = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    return response
 
-# アプリを起動
-if __name__ == "__main__":
-    app.launch()
+
+
+chat_interface = gr.ChatInterface(
+    fn=generate,
+)
+chat_interface.launch(share=True)
