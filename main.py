@@ -2,7 +2,7 @@ import gradio as gr
 import requests
 
 # Vercel APIのエンドポイント
-API_URL = "https://ultiima-api-vercel.com/api-sakal-models"  # デプロイしたAPIのURLを記入
+API_URL = "https://ultiima-api-vercel.app/api-sakal-models"  # デプロイしたAPIのURLを記入
 
 # APIリクエスト関数
 def generate_text(prompt, max_new_tokens, temperature, top_p, top_k):
